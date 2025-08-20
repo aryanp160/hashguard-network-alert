@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "HashGuard Network Alert",
+  "version": "1.0.0",
+  "description": "Monitor and manage network alerts with a beautiful React UI.",
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "permissions": [],
+  "host_permissions": ["<all_urls>"]
+}

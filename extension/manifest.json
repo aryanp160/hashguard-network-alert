@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "Operata - Decentralized File Verification",
+  "version": "1.0.0",
+  "description": "Blockchain-based file verification and network management system with IPFS storage",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "contextMenus",
+    "downloads",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://api.pinata.cloud/*",
+    "https://gateway.pinata.cloud/*",
+    "https://*.firebaseapp.com/*",
+    "https://*.googleapis.com/*",
+    "https://api.devnet.solana.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Operata Dashboard",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["popup.html", "assets/*"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+  }
+}
