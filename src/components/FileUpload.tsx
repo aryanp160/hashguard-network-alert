@@ -43,9 +43,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    
+
     if (!hasApiKeys) return;
-    
+
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
       setSelectedFile(files[0]);
@@ -61,23 +61,23 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
   const handleUpload = async () => {
     if (!selectedFile || !hasApiKeys) return;
-    
+
     setIsUploading(true);
     console.log('Uploading file...', {
       fileName: selectedFile.name,
       network: selectedNetwork?.name || 'Personal',
       uploader: username
     });
-    
+
     try {
       // Upload to Pinata
       const fileRecord = await uploadToPinata(selectedFile);
       console.log('File uploaded to Pinata:', fileRecord);
-      
+
       if (selectedNetwork) {
         // Store in network with blockchain tracking
         const result = await storeNetworkFile(selectedNetwork.id, fileRecord, userWallet);
-        
+
         let eloDelta = 0;
         if (result.isDuplicate) {
           eloDelta = -8;
@@ -104,18 +104,18 @@ const FileUpload: React.FC<FileUploadProps> = ({
           }
         }
       } else {
-        // Store metadata on blockchain (personal)
-        await storeFileMetadataOnChain(fileRecord, userWallet);
-        
-        toast.success(`Personal file uploaded successfully!`);
+        // Store as personal file on blockchain first, then Firebase
+        const blockchainTx = await storeFileMetadataOnChain(fileRecord, userWallet);
+
+        toast.success('File uploaded successfully!');
         hookToast({
           title: "Upload Successful",
-          description: `File "${selectedFile.name}" uploaded successfully to IPFS and recorded on blockchain!`,
+          description: `File "${selectedFile.name}" uploaded to IPFS and recorded on Solana blockchain! Transaction: ${blockchainTx.slice(0, 8)}...`,
         });
       }
-      
+
       setSelectedFile(null);
-      
+
       // Notify parent component to refresh file list
       if (onFileUploaded) {
         onFileUploaded();

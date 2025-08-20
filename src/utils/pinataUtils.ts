@@ -49,6 +49,7 @@ export interface FileRecord {
   uploadDate: string;
   status: 'verified' | 'duplicate' | 'processing';
   ipfsUrl: string;
+  blockchainTx?: string;
 }
 
 const PINATA_API_BASE = 'https://api.pinata.cloud';

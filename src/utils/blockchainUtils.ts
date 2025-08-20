@@ -2,9 +2,9 @@
 import { FileRecord } from './pinataUtils';
 import { addFileToProgram, getUserFiles } from './solanaUtils';
 
-// Store file metadata on Solana blockchain using our deployed program
-export const storeFileMetadataOnChain = async (fileRecord: FileRecord, walletAddress: string): Promise<void> => {
-  console.log('Storing file metadata in Firebase:', {
+// Store file metadata on Solana blockchain first, then Firebase
+export const storeFileMetadataOnChain = async (fileRecord: FileRecord, walletAddress: string): Promise<string> => {
+  console.log('Storing file metadata on Solana blockchain first:', {
     wallet: walletAddress,
     fileHash: fileRecord.hash,
     fileName: fileRecord.name,
@@ -12,7 +12,26 @@ export const storeFileMetadataOnChain = async (fileRecord: FileRecord, walletAdd
   });
   
   try {
-    // Store in Firebase instead of blockchain
+    // First, store on Solana blockchain using Anchor
+    const blockchainTx = await addFileToProgram(
+      fileRecord.hash,
+      fileRecord.hash, // Using same hash for SHA256
+      fileRecord.name,
+      fileRecord.size,
+      fileRecord.ipfsUrl,
+      undefined, // networkId - for personal files
+      {
+        fileName: fileRecord.name,
+        fileSize: fileRecord.size,
+        mimeType: 'application/octet-stream',
+        uploadDate: fileRecord.uploadDate,
+        walletAddress: walletAddress
+      }
+    );
+    
+    console.log('File metadata stored on Solana blockchain, tx:', blockchainTx);
+    
+    // Then store in Firebase with blockchain transaction reference
     const { db } = await import('../lib/firebase');
     const { collection, addDoc } = await import('firebase/firestore');
     
@@ -23,12 +42,15 @@ export const storeFileMetadataOnChain = async (fileRecord: FileRecord, walletAdd
       size: fileRecord.size,
       uploadDate: fileRecord.uploadDate,
       ipfsUrl: fileRecord.ipfsUrl,
-      status: 'verified'
+      status: 'verified',
+      blockchainTx: blockchainTx,
+      storedOnChain: true
     });
     
-    console.log('File metadata successfully stored in Firebase');
+    console.log('File metadata successfully stored on blockchain and Firebase');
+    return blockchainTx;
   } catch (error) {
-    console.error('Failed to store file metadata in Firebase:', error);
+    console.error('Failed to store file metadata on blockchain:', error);
     throw error;
   }
 };
@@ -37,7 +59,11 @@ export const getFileMetadataFromChain = async (walletAddress: string): Promise<F
   console.log('Fetching file metadata from Firebase for wallet:', walletAddress);
   
   try {
-    // Try to get files from Firebase instead of blockchain
+    // First try to get files from Solana blockchain
+    const blockchainFiles = await getUserFiles();
+    console.log('Files from blockchain:', blockchainFiles);
+    
+    // Also get files from Firebase for additional metadata
     const { db } = await import('../lib/firebase');
     const { collection, query, where, getDocs } = await import('firebase/firestore');
     
@@ -58,13 +84,14 @@ export const getFileMetadataFromChain = async (walletAddress: string): Promise<F
         size: data.size,
         uploadDate: data.uploadDate,
         ipfsUrl: data.ipfsUrl,
-        status: 'verified'
+        status: data.storedOnChain ? 'verified' : 'processing',
+        blockchainTx: data.blockchainTx
       });
     });
     
     return fileRecords;
   } catch (error) {
-    console.error('Failed to fetch file metadata from Firebase:', error);
+    console.error('Failed to fetch file metadata from blockchain/Firebase:', error);
     // Return empty array instead of throwing to prevent UI crashes
     return [];
   }

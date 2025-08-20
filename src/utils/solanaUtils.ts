@@ -530,8 +530,8 @@ export const addFileToNetwork = async (
   fileSize: number,
   ipfsUrl: string,
   networkId: number,
-  fileData: any[]
-): Promise<void> => {
+  fileData: any
+): Promise<string> => {
   const { walletConnection } = await import('./walletConnection');
   const program = walletConnection.getProgram();
   const wallet = walletConnection.getWallet();
@@ -540,7 +540,7 @@ export const addFileToNetwork = async (
     throw new Error('Wallet not connected or program not initialized');
   }
 
-  await addFile(
+  return await addFile(
     program,
     wallet,
     fileHash,

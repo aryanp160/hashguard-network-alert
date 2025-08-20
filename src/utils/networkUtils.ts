@@ -279,7 +279,7 @@ export const getUserRole = async (networkId: string, userWallet: string): Promis
   }
 };
 
-// Store network file record with duplicate detection using Firebase
+// Store network file record with duplicate detection using blockchain first, then Firebase
 export const storeNetworkFile = async (
   networkId: string,
   fileRecord: any,
@@ -287,13 +287,13 @@ export const storeNetworkFile = async (
   uploaderUsername: string
 ): Promise<{ success: boolean; isDuplicate: boolean; duplicateInfo?: any }> => {
   try {
-    console.log('Storing network file in Firebase:', {
+    console.log('Storing network file on blockchain first:', {
       networkId,
       fileName: fileRecord.name,
       uploader: uploaderWallet
     });
     
-    // Check for duplicates first
+    // Check for duplicates first in Firebase
     const filesQuery = query(
       collection(db, 'networkFiles'),
       where('networkId', '==', networkId),
@@ -335,6 +335,31 @@ export const storeNetworkFile = async (
       };
     }
     
+    // Store on Solana blockchain first
+    const { addFileToNetwork } = await import('./solanaUtils');
+    let blockchainTx: string | undefined;
+    
+    try {
+      blockchainTx = await addFileToNetwork(
+        fileRecord.hash,
+        fileRecord.hash, // SHA256 hash
+        fileRecord.name,
+        fileRecord.size,
+        fileRecord.ipfsUrl,
+        parseInt(networkId), // Convert to number for blockchain
+        {
+          fileName: fileRecord.name,
+          fileSize: fileRecord.size,
+          networkId: networkId,
+          uploaderWallet: uploaderWallet,
+          uploaderUsername: uploaderUsername || uploaderWallet
+        }
+      );
+      console.log('File stored on Solana blockchain, tx:', blockchainTx);
+    } catch (blockchainError) {
+      console.warn('Blockchain storage failed, continuing with Firebase only:', blockchainError);
+    }
+    
     // Ensure uploaderUsername is not undefined or empty
     const safeUploaderUsername = uploaderUsername || uploaderWallet;
     await addDoc(collection(db, 'networkFiles'), {
@@ -346,7 +371,9 @@ export const storeNetworkFile = async (
       uploaderWallet,
       uploaderUsername: safeUploaderUsername,
       uploadDate: serverTimestamp(),
-      ipfsUrl: fileRecord.ipfsUrl
+      ipfsUrl: fileRecord.ipfsUrl,
+      blockchainTx: blockchainTx,
+      storedOnChain: !!blockchainTx
     });
     
     // Apply ELO reward for unique file (+4)
@@ -358,7 +385,7 @@ export const storeNetworkFile = async (
     
     return { success: true, isDuplicate: false };
   } catch (error) {
-    console.error('Failed to store network file in Firebase:', error);
+    console.error('Failed to store network file:', error);
     throw error;
   }
 };
