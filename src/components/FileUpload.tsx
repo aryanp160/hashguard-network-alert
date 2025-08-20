@@ -76,7 +76,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
       if (selectedNetwork) {
         // Store in network with blockchain tracking
-        const result = await storeNetworkFile(selectedNetwork.id, fileRecord, userWallet);
+        const result = await storeNetworkFile(selectedNetwork.id, fileRecord, userWallet, username);
 
         let eloDelta = 0;
         if (result.isDuplicate) {

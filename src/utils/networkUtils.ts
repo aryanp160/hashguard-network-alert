@@ -337,7 +337,7 @@ export const storeNetworkFile = async (
     
     // Store on Solana blockchain first
     const { addFileToNetwork } = await import('./solanaUtils');
-    let blockchainTx: string | undefined;
+    let blockchainTx: string | null = null;
     
     try {
       blockchainTx = await addFileToNetwork(
@@ -358,11 +358,14 @@ export const storeNetworkFile = async (
       console.log('File stored on Solana blockchain, tx:', blockchainTx);
     } catch (blockchainError) {
       console.warn('Blockchain storage failed, continuing with Firebase only:', blockchainError);
+      blockchainTx = null;
     }
     
     // Ensure uploaderUsername is not undefined or empty
     const safeUploaderUsername = uploaderUsername || uploaderWallet;
-    await addDoc(collection(db, 'networkFiles'), {
+    
+    // Prepare Firebase document data
+    const firebaseData: any = {
       networkId,
       fileName: fileRecord.name,
       fileHash: fileRecord.hash,
@@ -372,9 +375,15 @@ export const storeNetworkFile = async (
       uploaderUsername: safeUploaderUsername,
       uploadDate: serverTimestamp(),
       ipfsUrl: fileRecord.ipfsUrl,
-      blockchainTx: blockchainTx,
       storedOnChain: !!blockchainTx
-    });
+    };
+    
+    // Only add blockchainTx if it's not null/undefined
+    if (blockchainTx) {
+      firebaseData.blockchainTx = blockchainTx;
+    }
+    
+    await addDoc(collection(db, 'networkFiles'), firebaseData);
     
     // Apply ELO reward for unique file (+4)
     const currentElo = await getUserElo(uploaderWallet);
