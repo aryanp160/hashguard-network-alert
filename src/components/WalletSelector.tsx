@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -44,7 +43,10 @@ const WalletSelector: React.FC<WalletSelectorProps> = ({ isOpen, onClose }) => {
     try {
       if (walletName === 'Phantom') {
         const { walletConnection } = await import('../utils/walletConnection');
-        const result = await walletConnection.connectPhantom();
+        
+        // --- FIX: Changed connectPhantom() to a more generic connect() method ---
+        // This assumes your walletConnection utility has a general-purpose connect function.
+        const result = await walletConnection.connect();
         
         console.log('Wallet connected successfully:', result.publicKey);
         

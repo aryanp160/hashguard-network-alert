@@ -1,29 +1,4 @@
-// Fetch Pinata storage stats (used/limit) via Pinata API
-export async function getPinataStorageStats() {
-  const apiKey = localStorage.getItem('pinata_api_key');
-  const secretKey = localStorage.getItem('pinata_secret_key');
-  if (!apiKey || !secretKey) {
-    return { used: 0, limit: 5 * 1024 * 1024 * 1024 };
-  }
-  try {
-    const res = await fetch('https://api.pinata.cloud/data/userPinnedDataTotal', {
-      headers: {
-        'pinata_api_key': apiKey,
-        'pinata_secret_api_key': secretKey,
-      },
-    });
-    if (!res.ok) throw new Error('Failed to fetch Pinata stats');
-    const data = await res.json();
-    // data.pin_count, data.pin_size_total (bytes), data.pin_size_limit (bytes)
-    return {
-      used: data.pin_size_total || 0,
-      limit: data.pin_size_limit || 5 * 1024 * 1024 * 1024,
-    };
-  } catch (e) {
-    return { used: 0, limit: 5 * 1024 * 1024 * 1024 };
-  }
-}
-
+// src/utils/pinataUtils.ts
 export interface PinataFile {
   id: string;
   ipfs_pin_hash: string;
@@ -43,6 +18,7 @@ export interface PinataFile {
 
 export interface FileRecord {
   id: string;
+  IpfsHash: string;           // required by TS
   name: string;
   hash: string;
   size: number;
@@ -54,6 +30,7 @@ export interface FileRecord {
 
 const PINATA_API_BASE = 'https://api.pinata.cloud';
 
+// ------------------- Pinata Keys -------------------
 export const getPinataKeys = () => {
   const apiKey = localStorage.getItem('pinata_api_key');
   const secretKey = localStorage.getItem('pinata_secret_key');
@@ -81,12 +58,36 @@ export const testPinataConnection = async (apiKey: string, secretKey: string): P
   }
 };
 
+// ------------------- Storage Stats -------------------
+export const getPinataStorageStats = async () => {
+  const { apiKey, secretKey } = getPinataKeys();
+  if (!apiKey || !secretKey) {
+    return { used: 0, limit: 5 * 1024 * 1024 * 1024 }; // default 5GB
+  }
+
+  try {
+    const res = await fetch('https://api.pinata.cloud/data/userPinnedDataTotal', {
+      headers: {
+        'pinata_api_key': apiKey,
+        'pinata_secret_api_key': secretKey,
+      },
+    });
+    if (!res.ok) throw new Error('Failed to fetch Pinata stats');
+    const data = await res.json();
+    return {
+      used: data.pin_size_total || 0,
+      limit: data.pin_size_limit || 5 * 1024 * 1024 * 1024,
+    };
+  } catch (e) {
+    console.error('Error fetching Pinata stats:', e);
+    return { used: 0, limit: 5 * 1024 * 1024 * 1024 };
+  }
+};
+
+// ------------------- Fetch Pinned Files -------------------
 export const fetchPinataFiles = async (): Promise<FileRecord[]> => {
   const { apiKey, secretKey } = getPinataKeys();
-  
-  if (!apiKey || !secretKey) {
-    throw new Error('Pinata API keys not found');
-  }
+  if (!apiKey || !secretKey) throw new Error('Pinata API keys not found');
 
   try {
     const response = await fetch(`${PINATA_API_BASE}/data/pinList?status=pinned&pageLimit=100`, {
@@ -96,20 +97,18 @@ export const fetchPinataFiles = async (): Promise<FileRecord[]> => {
         'pinata_secret_api_key': secretKey,
       },
     });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch files from Pinata');
-    }
+    if (!response.ok) throw new Error('Failed to fetch files from Pinata');
 
     const data = await response.json();
-    
+
     return data.rows.map((file: PinataFile): FileRecord => ({
       id: file.id,
+      IpfsHash: file.ipfs_pin_hash,
       name: file.metadata.name || 'Unnamed File',
       hash: file.ipfs_pin_hash,
       size: file.size,
       uploadDate: file.date_pinned,
-      status: 'verified' as const,
+      status: 'verified',
       ipfsUrl: `https://gateway.pinata.cloud/ipfs/${file.ipfs_pin_hash}`,
     }));
   } catch (error) {
@@ -118,22 +117,20 @@ export const fetchPinataFiles = async (): Promise<FileRecord[]> => {
   }
 };
 
+// ------------------- Upload File -------------------
 export const uploadToPinata = async (file: File): Promise<FileRecord> => {
   const { apiKey, secretKey } = getPinataKeys();
-  
-  if (!apiKey || !secretKey) {
-    throw new Error('Pinata API keys not found');
-  }
+  if (!apiKey || !secretKey) throw new Error('Pinata API keys not found');
 
   const formData = new FormData();
   formData.append('file', file);
-  
+
   const metadata = JSON.stringify({
     name: file.name,
     keyvalues: {
       uploadedAt: new Date().toISOString(),
       size: file.size.toString(),
-    }
+    },
   });
   formData.append('pinataMetadata', metadata);
 
@@ -147,14 +144,13 @@ export const uploadToPinata = async (file: File): Promise<FileRecord> => {
       body: formData,
     });
 
-    if (!response.ok) {
-      throw new Error('Failed to upload file to Pinata');
-    }
+    if (!response.ok) throw new Error('Failed to upload file to Pinata');
 
     const data = await response.json();
-    
+
     return {
       id: data.IpfsHash,
+      IpfsHash: data.IpfsHash,
       name: file.name,
       hash: data.IpfsHash,
       size: file.size,

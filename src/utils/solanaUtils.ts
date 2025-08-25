@@ -1,574 +1,192 @@
-import { Connection, PublicKey, clusterApiUrl } from '@solana/web3.js';
-import { AnchorProvider, Program, Wallet } from '@project-serum/anchor';
-import { encryptUserProfile, decryptUserProfile, encryptNetworkJoinKey, encryptFileMetadata, generateWalletSignature } from './encryptionUtils';
-import * as anchor from "@project-serum/anchor";
+// src/utils/solanaUtils.ts
+import {
+  Connection,
+  PublicKey,
+  Transaction,
+  TransactionInstruction,
+  SystemProgram,
+  Keypair,
+  clusterApiUrl,
+  sendAndConfirmRawTransaction,
+} from "@solana/web3.js";
+import * as borsh from "borsh";
 
-// Use your deployed program ID
-const PROGRAM_ID = new PublicKey('AXrMMFktbFSUro9c7n9B6GV3zWSm2UUXmzCio1xGEmbL');
-const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
+// ---- CONFIG: set your deployed program ID here ----
+export const PROGRAM_ID = new PublicKey("565BPrJVPFC86pBCMcZLWvCz6281VgsaRk9CJW9fyqKw");
 
-/**
- * Get Anchor Provider
- */
-export const getProvider = (wallet: any): AnchorProvider => {
-  const provider = new AnchorProvider(
-    connection,
-    wallet,
-    AnchorProvider.defaultOptions()
-  );
-  return provider;
-};
+// ---- Borsh classes that match your Rust structs ----
+export class FileMetadata {
+  hash: string;
+  name: string;
+  size: number;
 
-/**
- * Get Program
- */
-export const getProgram = (wallet: any, idl: any): Program => {
-  const provider = getProvider(wallet);
-  const program = new Program(idl, PROGRAM_ID, provider);
-  return program;
-};
-
-/**
- * Initialize User Profile
- */
-export const initializeUser = async (
-  program: Program,
-  wallet: any,
-  username: string,
-  profileData: any,
-): Promise<string> => {
-  try {
-    const userProfile = PublicKey.findProgramAddressSync(
-      [Buffer.from("user"), wallet.publicKey.toBuffer()],
-      program.programId
-    )[0];
-
-    // Generate a wallet signature for encryption
-    const walletSignature = await generateWalletSignature(wallet.publicKey.toString());
-
-    // Encrypt the user profile data
-    const encryptedProfileData = await encryptUserProfile(profileData, walletSignature);
-
-    const tx = await program.methods
-      .initializeUser(username, Array.from(encryptedProfileData))
-      .accounts({
-        userProfile: userProfile,
-        authority: wallet.publicKey,
-        systemProgram: PublicKey.default,
-      })
-      .rpc();
-    console.log("Your transaction signature", tx);
-    return tx;
-  } catch (error) {
-    console.error("Error initializing user:", error);
-    throw error;
-  }
-};
-
-/**
- * Create Network
- */
-export const createNetwork = async (
-  program: Program,
-  wallet: any,
-  networkName: string,
-  joinKey: string,
-  networkData: any
-): Promise<string> => {
-  try {
-    const network = PublicKey.findProgramAddressSync(
-      [Buffer.from("network"), Buffer.from(networkName)],
-      program.programId
-    )[0];
-
-    const userProfile = PublicKey.findProgramAddressSync(
-      [Buffer.from("user"), wallet.publicKey.toBuffer()],
-      program.programId
-    )[0];
-
-    // Generate a wallet signature for encryption
-    const walletSignature = await generateWalletSignature(wallet.publicKey.toString());
-
-    // Encrypt the network join key
-    const encryptedJoinKey = await encryptNetworkJoinKey(joinKey, walletSignature);
-
-    // Encrypt the network data
-    const encryptedNetworkData = await encryptUserProfile(networkData, walletSignature);
-
-    const tx = await program.methods
-      .createNetwork(networkName, Array.from(encryptedJoinKey), Array.from(encryptedNetworkData))
-      .accounts({
-        network: network,
-        userProfile: userProfile,
-        authority: wallet.publicKey,
-        systemProgram: PublicKey.default,
-      })
-      .rpc();
-    console.log("Your transaction signature", tx);
-    return tx;
-  } catch (error) {
-    console.error("Error creating network:", error);
-    throw error;
-  }
-};
-
-/**
- * Join Network
- */
-export const joinNetwork = async (
-  program: Program,
-  wallet: any,
-  networkId: PublicKey,
-  joinKey: string,
-  username: string,
-  memberData: any
-): Promise<string> => {
-  try {
-    const userProfile = PublicKey.findProgramAddressSync(
-      [Buffer.from("user"), wallet.publicKey.toBuffer()],
-      program.programId
-    )[0];
-
-    // Generate a wallet signature for encryption
-    const walletSignature = await generateWalletSignature(wallet.publicKey.toString());
-
-    // Encrypt the join key
-    const encryptedJoinKey = await encryptNetworkJoinKey(joinKey, walletSignature);
-
-    // Encrypt the member data
-    const encryptedMemberData = await encryptUserProfile(memberData, walletSignature);
-
-    const tx = await program.methods
-      .joinNetwork(Array.from(encryptedJoinKey), username, Array.from(encryptedMemberData))
-      .accounts({
-        network: networkId,
-        userProfile: userProfile,
-        authority: wallet.publicKey,
-      })
-      .rpc();
-    console.log("Your transaction signature", tx);
-    return tx;
-  } catch (error) {
-    console.error("Error joining network:", error);
-    throw error;
-  }
-};
-
-/**
- * Add File
- */
-export const addFile = async (
-  program: Program,
-  wallet: any,
-  fileHash: string,
-  sha256Hash: string,
-  fileName: string,
-  fileSize: number,
-  ipfsUrl: string,
-  networkId: PublicKey | null,
-  fileData: any
-): Promise<string> => {
-  try {
-    const userProfile = PublicKey.findProgramAddressSync(
-      [Buffer.from("user"), wallet.publicKey.toBuffer()],
-      program.programId
-    )[0];
-
-    // Generate a wallet signature for encryption
-    const walletSignature = await generateWalletSignature(wallet.publicKey.toString());
-
-    // Encrypt the file data
-    const encryptedFileData = await encryptFileMetadata(fileData, walletSignature);
-
-    const accounts: any = {
-      userProfile: userProfile,
-      authority: wallet.publicKey,
-    };
-
-    if (networkId) {
-      accounts.network = networkId;
+  constructor(fields: { hash: string; name: string; size: number } | undefined = undefined) {
+    if (fields) {
+      this.hash = fields.hash;
+      this.name = fields.name;
+      this.size = fields.size;
+    } else {
+      this.hash = "";
+      this.name = "";
+      this.size = 0;
     }
-
-    const tx = await program.methods
-      .addFile(fileHash, sha256Hash, fileName, fileSize, ipfsUrl, networkId ? new anchor.BN(networkId.toString()) : null, Array.from(encryptedFileData))
-      .accounts(accounts)
-      .rpc();
-    console.log("Your transaction signature", tx);
-    return tx;
-  } catch (error) {
-    console.error("Error adding file:", error);
-    throw error;
   }
-};
+}
+
+const FileMetadataSchema = new Map([
+  [
+    FileMetadata,
+    {
+      kind: "struct",
+      fields: [
+        ["hash", "string"],
+        ["name", "string"],
+        ["size", "u64"],
+      ],
+    },
+  ],
+]);
+
+// Helper: connection
+const getConnection = () => new Connection(clusterApiUrl("devnet"), "confirmed");
+
+// Utility: estimate storage account size (very conservative)
+export function estimateUserAccountSize(maxFiles = 200) {
+  // estimate per-file size: borsh string length prefixes + length
+  // use a safe upper bound (e.g. hash 64 chars, name 64 chars)
+  const perFile = 4 + 64 + 4 + 64 + 8; // hash string (4 len + 64), name (4 + 64), size u64
+  const overhead = 32 + 4; // owner pubkey (32) + vec length (4)
+  return overhead + perFile * maxFiles;
+}
 
 /**
- * Update ELO
+ * createStorageAccountForUser
+ * - Creates a new account (Keypair) on-chain and assigns it to your program.
+ * - Returns { storagePubkey, creationSignature }.
+ *
+ * NOTE: This uses a generated Keypair for the storage account. We partially sign
+ * the transaction with that Keypair, then request the wallet to sign (so both
+ * signatures are present), and finally send the raw signed transaction.
  */
-export const updateElo = async (
-  program: Program,
-  wallet: any,
-  delta: number
-): Promise<string> => {
-  try {
-    const userProfile = PublicKey.findProgramAddressSync(
-      [Buffer.from("user"), wallet.publicKey.toBuffer()],
-      program.programId
-    )[0];
+export async function createStorageAccountForUser({
+  payerPublicKey,
+  connection = getConnection(),
+  maxFiles = 200,
+  lamportsTopUp = 0,
+}: {
+  payerPublicKey: PublicKey; // wallet.publicKey
+  connection?: Connection;
+  maxFiles?: number;
+  lamportsTopUp?: number; // optional extra lamports to add
+}): Promise<{ storageAccountPubkey: PublicKey; txSignature: string; newAccountSecret?: Uint8Array }> {
+  // 1) Create new account keypair (storage account)
+  const newAccount = Keypair.generate();
+  const requiredSpace = estimateUserAccountSize(maxFiles);
+  const lamports = await connection.getMinimumBalanceForRentExemption(requiredSpace);
 
-    const tx = await program.methods
-      .updateElo(new anchor.BN(delta))
-      .accounts({
-        userProfile: userProfile,
-        authority: wallet.publicKey,
-      })
-      .rpc();
-    console.log("Your transaction signature", tx);
-    return tx;
-  } catch (error) {
-    console.error("Error updating ELO:", error);
-    throw error;
-  }
-};
+  const totalLamports = lamports + lamportsTopUp;
+
+  // 2) Build transaction: create account and assign to program
+  const createIx = SystemProgram.createAccount({
+    fromPubkey: payerPublicKey,
+    newAccountPubkey: newAccount.publicKey,
+    lamports: totalLamports,
+    space: requiredSpace,
+    programId: PROGRAM_ID,
+  });
+
+  const tx = new Transaction().add(createIx);
+
+  // 3) Partial sign with the new account (it needs to sign createAccount)
+  tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash;
+  tx.feePayer = payerPublicKey;
+  tx.partialSign(newAccount);
+
+  // 4) Now request the wallet to sign (this will add the payer's signature)
+  // Use window.solana (Phantom) to sign; it returns the signed transaction.
+  // Then send raw transaction
+  // NOTE: Phantom exposes signTransaction(tx) which expects a Transaction object
+  // that it will sign with the wallet. After wallet signs, we can send the raw tx.
+  // If wallet doesn't implement signTransaction, fallback to provider.sendTransaction pattern is harder.
+  // We'll assume Phantom-compatible provider is present.
+
+  // @ts-ignore window
+  const provider = (window as any).solana;
+  if (!provider) throw new Error("Wallet provider not found (window.solana)");
+
+  // provider.signTransaction will attach the wallet signature, preserving existing signatures
+  const signedByWallet = await provider.signTransaction(tx);
+  const raw = signedByWallet.serialize();
+
+  const signature = await connection.sendRawTransaction(raw);
+  await connection.confirmTransaction(signature, "confirmed");
+
+  // Return the new storage account pubkey and tx signature
+  return {
+    storageAccountPubkey: newAccount.publicKey,
+    txSignature: signature,
+    newAccountSecret: newAccount.secretKey, // optional: you can store this offline (not required afterwards)
+  };
+}
 
 /**
- * Update Network Reputation
+ * addFileToProgram
+ * - Adds a file record to the given storage account (which must be owned by the program).
+ * - If storageAccountPubkey is null/undefined, expect caller to create it first (or you can create it via createStorageAccountForUser).
+ *
+ * Returns the transaction signature.
  */
-export const updateNetworkReputation = async (
-  program: Program,
-  wallet: any,
-  networkId: PublicKey,
-  targetWallet: PublicKey,
-  delta: number
-): Promise<string> => {
-  try {
-    const tx = await program.methods
-      .updateNetworkReputation(targetWallet, new anchor.BN(delta))
-      .accounts({
-        network: networkId,
-        authority: wallet.publicKey,
-      })
-      .rpc();
-    console.log("Your transaction signature", tx);
-    return tx;
-  } catch (error) {
-    console.error("Error updating network reputation:", error);
-    throw error;
-  }
-};
+export async function addFileToProgram({
+  storageAccountPubkey,
+  fileHash, // string
+  fileName,
+  fileSize,
+  connection = getConnection(),
+}: {
+  storageAccountPubkey: PublicKey;
+  fileHash: string;
+  fileName: string;
+  fileSize: number;
+  connection?: Connection;
+}): Promise<string> {
+  // provider (Phantom) should be available
+  // @ts-ignore window
+  const provider = (window as any).solana;
+  if (!provider || !provider.publicKey) throw new Error("Wallet not connected");
 
-/**
- * Mark Alert As Read
- */
-export const markAlertAsRead = async (
-  program: Program,
-  wallet: any,
-  networkId: PublicKey,
-  alertId: number
-): Promise<string> => {
-  try {
-    const tx = await program.methods
-      .markAlertAsRead(new anchor.BN(alertId))
-      .accounts({
-        network: networkId,
-        authority: wallet.publicKey,
-      })
-      .rpc();
-    console.log("Your transaction signature", tx);
-    return tx;
-  } catch (error) {
-    console.error("Error marking alert as read:", error);
-    throw error;
-  }
-};
+  const walletPubkey: PublicKey = provider.publicKey;
 
-/**
- * Encrypt Data
- */
-export const encryptData = async (
-  program: Program,
-  wallet: any,
-  data: string,
-  encryptionKeyHash: Uint8Array
-): Promise<string> => {
-  try {
-    const tx = await program.methods
-      .encryptData(Array.from(data), Array.from(encryptionKeyHash))
-      .accounts({
-        authority: wallet.publicKey,
-      })
-      .rpc();
-    console.log("Your transaction signature", tx);
-    return tx;
-  } catch (error) {
-    console.error("Error encrypting data:", error);
-    throw error;
-  }
-};
+  // Build FileMetadata instance and serialize with borsh
+  const file = new FileMetadata({ hash: fileHash, name: fileName, size: fileSize });
+  const dataBuf = borsh.serialize(FileMetadataSchema, file); // Buffer-like Uint8Array
 
-/**
- * Decrypt Data
- */
-export const decryptData = async (
-  program: Program,
-  wallet: any,
-  encryptedData: Uint8Array,
-  encryptionKeyHash: Uint8Array
-): Promise<string> => {
-  try {
-    const tx = await program.methods
-      .decryptData(Array.from(encryptedData), encryptionKeyHash)
-      .accounts({
-        authority: wallet.publicKey,
-      })
-      .rpc();
-    console.log("Your transaction signature", tx);
-    return tx;
-  } catch (error) {
-    console.error("Error decrypting data:", error);
-    throw error;
-  }
-};
+  // Instruction format in your Rust: [tag(1 byte) | borsh(FileMetadata)]
+  const tag = Buffer.from([0]); // opcode 0 = AddFile
+  const instructionData = Buffer.concat([tag, Buffer.from(dataBuf)]);
 
-/**
- * Update Encrypted Profile
- */
-export const updateEncryptedProfile = async (
-  program: Program,
-  wallet: any,
-  profileData: any
-): Promise<string> => {
-  try {
-    const userProfile = PublicKey.findProgramAddressSync(
-      [Buffer.from("user"), wallet.publicKey.toBuffer()],
-      program.programId
-    )[0];
+  const ix = new TransactionInstruction({
+    keys: [
+      { pubkey: storageAccountPubkey, isSigner: false, isWritable: true }, // storage account
+      { pubkey: walletPubkey, isSigner: true, isWritable: false }, // uploader signer
+    ],
+    programId: PROGRAM_ID,
+    data: Buffer.from(instructionData),
+  });
 
-    // Generate a wallet signature for encryption
-    const walletSignature = await generateWalletSignature(wallet.publicKey.toString());
+  const tx = new Transaction().add(ix);
 
-    // Encrypt the user profile data
-    const encryptedProfileData = await encryptUserProfile(profileData, walletSignature);
+  // Let wallet sign & send
+  // provider.signTransaction will sign; then we send raw
+  // Some wallets provide provider.sendTransaction(tx, connection) — but to be explicit we do:
+  tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash;
+  tx.feePayer = walletPubkey;
 
-    const tx = await program.methods
-      .updateEncryptedProfile(Array.from(encryptedProfileData))
-      .accounts({
-        userProfile: userProfile,
-        authority: wallet.publicKey,
-      })
-      .rpc();
-    console.log("Your transaction signature", tx);
-    return tx;
-  } catch (error) {
-    console.error("Error updating encrypted profile:", error);
-    throw error;
-  }
-};
+  // Ask wallet to sign
+  const signed = await provider.signTransaction(tx);
+  const raw = signed.serialize();
 
-/**
- * Bulk Encrypt Network Data
- */
-export const bulkEncryptNetworkData = async (
-  program: Program,
-  wallet: any,
-  networkId: PublicKey,
-  memberData: any[],
-  fileData: any[]
-): Promise<string> => {
-  try {
-    // Generate a wallet signature for encryption
-    const walletSignature = await generateWalletSignature(wallet.publicKey.toString());
+  const sig = await connection.sendRawTransaction(raw);
+  await connection.confirmTransaction(sig, "confirmed");
 
-    // Encrypt the member data
-    const encryptedMemberData = await Promise.all(memberData.map(async (data) => {
-      return Array.from(await encryptUserProfile(data, walletSignature));
-    }));
-
-    // Encrypt the file data
-    const encryptedFileData = await Promise.all(fileData.map(async (data) => {
-      return Array.from(await encryptFileMetadata(data, walletSignature));
-    }));
-
-    const tx = await program.methods
-      .bulkEncryptNetworkData(encryptedMemberData, encryptedFileData)
-      .accounts({
-        network: networkId,
-        authority: wallet.publicKey,
-      })
-      .rpc();
-    console.log("Your transaction signature", tx);
-    return tx;
-  } catch (error) {
-    console.error("Error bulk encrypting network data:", error);
-    throw error;
-  }
-};
-
-// Wrapper functions for easier usage in other files
-export const addFileToProgram = async (
-  fileHash: string,
-  sha256Hash: string,
-  fileName: string,
-  fileSize: number,
-  ipfsUrl: string,
-  networkId?: number,
-  fileData: any[] = []
-): Promise<string> => {
-  const { walletConnection } = await import('./walletConnection');
-  const program = walletConnection.getProgram();
-  const wallet = walletConnection.getWallet();
-  
-  if (!program || !wallet) {
-    throw new Error('Wallet not connected or program not initialized');
-  }
-
-  return await addFile(
-    program,
-    wallet,
-    fileHash,
-    sha256Hash,
-    fileName,
-    fileSize,
-    ipfsUrl,
-    networkId ? new PublicKey(networkId.toString()) : null,
-    fileData
-  );
-};
-
-export const getUserFiles = async (): Promise<any[]> => {
-  const { walletConnection } = await import('./walletConnection');
-  const program = walletConnection.getProgram();
-  const wallet = walletConnection.getWallet();
-  
-  if (!program || !wallet) {
-    console.log('Wallet not connected, returning empty array');
-    return [];
-  }
-
-  try {
-    // Fetch user profile PDA
-    const userProfile = PublicKey.findProgramAddressSync(
-      [Buffer.from("user"), wallet.publicKey.toBuffer()],
-      program.programId
-    )[0];
-
-    // Fetch the user profile data
-    const userAccount = await program.account.userProfile.fetch(userProfile);
-    return userAccount.files || [];
-  } catch (error) {
-    console.error('Error fetching user files:', error);
-    return [];
-  }
-};
-
-export const createNetworkOnChain = async (
-  networkName: string,
-  joinKey: string,
-  networkData: any[]
-): Promise<number> => {
-  const { walletConnection } = await import('./walletConnection');
-  
-  // Check if wallet is connected
-  if (!walletConnection.isConnected()) {
-    throw new Error('Wallet not connected. Please connect your wallet first.');
-  }
-  
-  const program = walletConnection.getProgram();
-  const wallet = walletConnection.getWallet();
-  
-  if (!program || !wallet) {
-    console.log('Program:', program, 'Wallet:', wallet);
-    throw new Error('Program not initialized. Please reconnect your wallet.');
-  }
-
-  await createNetwork(program, wallet, networkName, joinKey, networkData);
-  return Date.now(); // Return timestamp as network ID for now
-};
-
-export const joinNetworkOnChain = async (
-  joinKey: string,
-  username: string,
-  memberData: any[]
-): Promise<void> => {
-  const { walletConnection } = await import('./walletConnection');
-  const program = walletConnection.getProgram();
-  const wallet = walletConnection.getWallet();
-  
-  if (!program || !wallet) {
-    throw new Error('Wallet not connected or program not initialized');
-  }
-
-  // For now, we'll need to implement network ID lookup
-  // This is a simplified version
-  const networkId = new PublicKey('11111111111111111111111111111111');
-  await joinNetwork(program, wallet, networkId, joinKey, username, memberData);
-};
-
-export const getUserNetworks = async (): Promise<any[]> => {
-  const { walletConnection } = await import('./walletConnection');
-  const program = walletConnection.getProgram();
-  const wallet = walletConnection.getWallet();
-  
-  if (!program || !wallet) {
-    console.log('Wallet not connected, returning empty array');
-    return [];
-  }
-
-  try {
-    // Fetch all networks where user is a member
-    // This would require implementing proper network querying
-    return [];
-  } catch (error) {
-    console.error('Error fetching user networks:', error);
-    return [];
-  }
-};
-
-export const addFileToNetwork = async (
-  fileHash: string,
-  sha256Hash: string,
-  fileName: string,
-  fileSize: number,
-  ipfsUrl: string,
-  networkId: number,
-  fileData: any
-): Promise<string> => {
-  const { walletConnection } = await import('./walletConnection');
-  const program = walletConnection.getProgram();
-  const wallet = walletConnection.getWallet();
-  
-  if (!program || !wallet) {
-    throw new Error('Wallet not connected or program not initialized');
-  }
-
-  return await addFile(
-    program,
-    wallet,
-    fileHash,
-    sha256Hash,
-    fileName,
-    fileSize,
-    ipfsUrl,
-    new PublicKey(networkId.toString()),
-    fileData
-  );
-};
-
-export const getNetworkAlerts = async (networkId: number): Promise<any[]> => {
-  const { walletConnection } = await import('./walletConnection');
-  const program = walletConnection.getProgram();
-  const wallet = walletConnection.getWallet();
-  
-  if (!program || !wallet) {
-    console.log('Wallet not connected, returning empty array');
-    return [];
-  }
-
-  try {
-    // Fetch network alerts from the blockchain
-    // This would require implementing proper alert querying
-    return [];
-  } catch (error) {
-    console.error('Error fetching network alerts:', error);
-    return [];
-  }
-};
+  return sig;
+}

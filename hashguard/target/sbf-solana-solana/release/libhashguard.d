@@ -1,0 +1,1 @@
+/mnt/c/Users/ASUS/OneDrive/Desktop/hashguard-network-alert/hashguard/target/sbf-solana-solana/release/libhashguard.rlib: /mnt/c/Users/ASUS/OneDrive/Desktop/hashguard-network-alert/hashguard/src/lib.rs
