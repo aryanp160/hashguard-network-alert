@@ -44,4 +44,6 @@ export default defineConfig({
       },
     },
   },
+  // Ensure proper base URL for Vercel deployment
+  base: "/",
 });

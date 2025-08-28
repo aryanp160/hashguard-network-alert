@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Wallet, ArrowRight, Zap, Shield } from 'lucide-react';
+import { useLocation } from 'wouter';
 
 interface WalletSelectorProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface WalletSelectorProps {
 }
 
 const WalletSelector: React.FC<WalletSelectorProps> = ({ isOpen, onClose }) => {
+  const [, setLocation] = useLocation();
   const wallets = [
     {
       name: "Phantom",
@@ -55,8 +57,8 @@ const WalletSelector: React.FC<WalletSelectorProps> = ({ isOpen, onClose }) => {
         localStorage.setItem('walletAddress', result.publicKey);
         
         onClose();
-        // Redirect to dashboard
-        window.location.href = '/dashboard';
+        // Navigate to dashboard using client-side routing
+        setLocation('/dashboard');
       } else {
         // For other wallets, show not implemented message
         alert(`${walletName} integration coming soon! Please use Phantom for now.`);

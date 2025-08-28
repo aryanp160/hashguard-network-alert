@@ -20,8 +20,10 @@ import NetworkSettings from '../components/NetworkSettings';
 import { getPinataKeys, savePinataKeys, testPinataConnection } from '../utils/pinataUtils';
 import { Network, getUserElo, updateUserElo } from '../utils/networkUtils';
 import DuplicateAlerts from '../components/DuplicateAlerts';
+import { useLocation } from 'wouter';
 
 const Dashboard = () => {
+  const [, setLocation] = useLocation();
   const [pinataApiKey, setPinataApiKey] = useState('');
   const [pinataSecretKey, setPinataSecretKey] = useState('');
   const [hasApiKeys, setHasApiKeys] = useState(false);
@@ -121,10 +123,10 @@ const Dashboard = () => {
       await walletConnection.disconnect();
       localStorage.removeItem('walletConnected');
       localStorage.removeItem('walletAddress');
-      window.location.href = '/';
+      setLocation('/');
     } catch (error) {
       console.error('Error disconnecting wallet:', error);
-      window.location.href = '/';
+      setLocation('/');
     }
   };
 
@@ -135,10 +137,10 @@ const Dashboard = () => {
       await walletConnection.disconnect();
       localStorage.removeItem('walletConnected');
       localStorage.removeItem('walletAddress');
-      window.location.href = '/';
+      setLocation('/');
     } catch (error) {
       console.error('Error disconnecting wallet:', error);
-      window.location.href = '/';
+      setLocation('/');
     }
   };
 
