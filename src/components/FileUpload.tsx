@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
 import { PublicKey } from "@solana/web3.js";
 import { walletConnection } from "@/utils/walletConnection"; 
-import * as bs58 from "bs58";
+import * as bs58 from 'bs58';
 
 interface FileUploadProps {
   hasApiKeys: boolean;

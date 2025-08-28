@@ -44,4 +44,7 @@ export default defineConfig({
       },
     },
   },
+    optimizeDeps: {
+    include: ['bs58'],
+  },
 });
