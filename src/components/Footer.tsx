@@ -71,7 +71,7 @@ const Footer = () => {
             className="flex items-center"
           >
             <img 
-              src="src/assets/superteam-india-new.jpg" 
+              src="./src/assets/superteam-india-new.jpg" 
               alt="Superteam India" 
               className="h-6 w-auto hover:scale-110 transition-transform drop-shadow-[0_0_6px_rgba(255,255,255,0.6)]" 
             />
@@ -83,7 +83,7 @@ const Footer = () => {
             className="flex items-center"
           >
             <img 
-              src="src/assets/logo.png" 
+              src="./src/assets/logo.png" 
               alt="Solana Foundation" 
               className="h-6 w-auto hover:scale-110 transition-transform drop-shadow-[0_0_6px_rgba(0,255,180,0.6)]" 
             />
