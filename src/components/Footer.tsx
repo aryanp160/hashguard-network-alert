@@ -64,30 +64,30 @@ const Footer = () => {
         </div>
         <div className="glass-card px-4 py-2 rounded-lg flex items-center space-x-4 shadow-lg border border-white/10 transition-transform duration-300 hover:scale-105 hover:shadow-[0_0_20px_rgba(0,255,255,0.5)] hover:bg-white/5">
           <span className="text-gray-300 text-sm">Fueled by</span>
-          <a 
-            href="https://superteam.fun/" 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            className="flex items-center"
-          >
-            <img 
-              src="./src/assets/superteam-india-new.jpg" 
-              alt="Superteam India" 
-              className="h-6 w-auto hover:scale-110 transition-transform drop-shadow-[0_0_6px_rgba(255,255,255,0.6)]" 
-            />
-          </a>
-          <a 
-            href="https://solana.org/" 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            className="flex items-center"
-          >
-            <img 
-              src="./src/assets/logo.png" 
-              alt="Solana Foundation" 
-              className="h-6 w-auto hover:scale-110 transition-transform drop-shadow-[0_0_6px_rgba(0,255,180,0.6)]" 
-            />
-          </a>
+          <a
+  href="https://superteam.fun/"
+  target="_blank"
+  rel="noopener noreferrer"
+  className="flex items-center"
+>
+  <img
+    src="/assets/superteam-india-new.jpg"
+    alt="Superteam India"
+    className="h-6 w-auto hover:scale-110 transition-transform drop-shadow-[0_0_6px_rgba(255,255,255,0.6)]"
+  />
+</a>
+<a
+  href="https://solana.org/"
+  target="_blank"
+  rel="noopener noreferrer"
+  className="flex items-center"
+>
+  <img
+    src="/assets/logo.png"
+    alt="Solana Foundation"
+    className="h-6 w-auto hover:scale-110 transition-transform drop-shadow-[0_0_6px_rgba(0,255,180,0.6)]"
+  />
+</a>
         </div>
       </div>
     </footer>
